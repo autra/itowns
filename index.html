@@ -54,22 +54,104 @@ and open the template in the editor.
             const urlImageryLayers = [];
             const urlElevationLayers = [];
 
-            urlImageryLayers.push('examples/layers/JSONLayers/Ortho.json');
-            urlImageryLayers.push('examples/layers/JSONLayers/OrthosCRS.json');
-            urlImageryLayers.push('examples/layers/JSONLayers/ScanEX.json');
-            urlImageryLayers.push('examples/layers/JSONLayers/Region.json');
+            // DONE
+            //urlImageryLayers.push('examples/layers/JSONLayers/Ortho.json');
+            //urlImageryLayers.push('examples/layers/JSONLayers/OrthosCRS.json');
+            //urlImageryLayers.push('examples/layers/JSONLayers/ScanEX.json');
+            //urlImageryLayers.push('examples/layers/JSONLayers/Region.json');
+            // TODO
 
-            urlElevationLayers.push('examples/layers/JSONLayers/IGN_MNT.json');
-            urlElevationLayers.push('examples/layers/JSONLayers/IGN_MNT_HIGHRES.json');
+            //urlElevationLayers.push('examples/layers/JSONLayers/IGN_MNT.json');
+            //urlElevationLayers.push('examples/layers/JSONLayers/IGN_MNT_HIGHRES.json');
 
-            itowns.viewer.addGeometryLayer(wgs84TileLayer);
-            const imageryPromise = itowns.viewer.addImageryLayersFromJSONArray(urlImageryLayers);
-            const elevationPromise = itowns.viewer.addElevationLayersFromJSONArray(urlElevationLayers);
+            const geometryPromise = itowns.viewer.addGeometryLayer(wgs84TileLayer);
+            //const imageryPromises = itowns.viewer.addImageryLayersFromJSONArray(urlImageryLayers);
+            // TODO layer id?
+            const imageryPromises = [
+                itowns.viewer.addImageryLayer({
+                    id: 'Ortho',
+                    protocol: 'wmts',
+                    url: 'http://wxs.ign.fr/va5orxd0pgzvq3jxutqfuy0b/geoportail/wmts',
+                    name: 'ORTHOIMAGERY.ORTHOPHOTOS',
+                    "updateStrategy": {
+                        "type": "0",
+                        "options": {}
+                    },
+                }),
+                itowns.viewer.addImageryLayer({
+                    id: "OrthoCRS",
+                    "name": "ORTHOIMAGERY.ORTHOPHOTOS.CRS84",
+                    protocol: "wmts",
+                    url: "http://wxs.ign.fr/va5orxd0pgzvq3jxutqfuy0b/geoportail/wmts",
+                    fx : 1.0,
+                    updateStrategy: {
+                        "type": 0,
+                        "options": {}
+                    },
+                }),
+                itowns.viewer.addImageryLayer({
+                    "protocol":   "wmts",
+                    "id":         "ScanEX",
+                    "name": "GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN-EXPRESS.STANDARD",
+                    "url":        "http://wxs.ign.fr/va5orxd0pgzvq3jxutqfuy0b/geoportail/wmts",
+                    "fx" :        2.5,
+                    "updateStrategy": {
+                        "type": 0,
+                        "options": {}
+                    },
+                }),
+                /*itowns.viewer.addImageryLayer({
+                    protocol: "wmts",
+                    "url"       : "https://wxs.ign.fr/gratuit/geoportail/v/wms",
+                    "protocol"  : "wms",
+                    "version"   : "1.3.0",
+                    "id"        : "Region",
+                    "name"      : "REGION.2016",
+                    "bbox"      : [-61.80983300000002, 55.83665389999998, -21.38963079935857, 51.0890011990783],
+                    "width"    : 256,
+                    "height"    : 256,
+                    "projection" : "EPSG:4326",
+                    "updateStrategy": {
+                        "type": 0,
+                        "options": {}
+                    },
+                    "transparent" : true,
+                }),*/
+            ];
+            const elevationPromises = [
+                itowns.viewer.addElevationLayer({
+                    "url":        "http://wxs.ign.fr/va5orxd0pgzvq3jxutqfuy0b/geoportail/wmts",
+                    "protocol":   "wmts",
+                    "id":         "IGN_MNT",
+                    "name": "ELEVATION.ELEVATIONGRIDCOVERAGE",
+                    "noDataValue" : -99999,
+                    "updateStrategy": {
+                        "type": 1,
+                        "options": {
+                            "groups": [3, 7, 11, 14]
+                        }
+                    },
+                }),
+                itowns.viewer.addElevationLayer({
+                    "protocol":   "wmts",
+                    "id":         "IGN_MNT_HIGHRES",
+                    "name": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES",
+                    "url":        "http://wxs.ign.fr/va5orxd0pgzvq3jxutqfuy0b/geoportail/wmts",
+                    "noDataValue" : -99999,
+                    "updateStrategy": {
+                        "type": 1,
+                        "options": {
+                            "groups": [3, 7, 11, 14]
+                        }
+                    },
+                }),
+            ];
 
-            imageryPromise.then((layersColors) => { menuGlobe.addImageryLayersGUI(layersColors); });
-            elevationPromise.then((layersElevations) => { menuGlobe.addElevationLayersGUI(layersElevations); });
+            //imageryPromises.then((layersColors) => { menuGlobe.addImageryLayersGUI(layersColors); });
+            Promise.all(imageryPromises).then((colorLayers) => menuGlobe.addImageryLayersGUI(colorLayers));
+            Promise.all(elevationPromises).then((layersElevations) => { menuGlobe.addElevationLayersGUI(layersElevations); });
 
-            Promise.all([imageryPromise, elevationPromise]).then(() => itowns.viewer.init());
+            Promise.all([geometryPromise, ...elevationPromises, ...imageryPromises]).then(() => itowns.viewer.init());
 
             menuGlobe.addGUI('RealisticLighting', false,
                 (newValue) => { itowns.viewer.setRealisticLightingOn(newValue); });

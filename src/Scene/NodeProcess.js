@@ -103,7 +103,7 @@ NodeProcess.prototype.subdivideNode = function subdivideNode(node, camera, param
                             layer.tileTextureCount(child, layer) : 1;
 
                         paramMaterial.push({
-                            tileMT: layer.options.tileMatrixSet,
+                            tileMT: layer.tileMatrixSet,
                             texturesCount,
                             visible: params.layersConfig.isColorLayerVisible(layer.id),
                             opacity: params.layersConfig.getColorLayerOpacity(layer.id),

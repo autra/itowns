@@ -20,7 +20,6 @@ var eventLoaded = new CustomEvent('globe-loaded');
 var eventRange = new CustomEvent('rangeChanged');
 var eventOrientation = new CustomEvent('orientationchanged');
 var eventPan = new CustomEvent('panchanged');
-var eventLayerAdded = new CustomEvent('layeradded');
 var eventLayerRemoved = new CustomEvent('layerremoved');
 var eventLayerChanged = new CustomEvent('layerchanged');
 var eventLayerChangedVisible = new CustomEvent('layerchanged:visible');
@@ -54,23 +53,31 @@ ApiGlobe.prototype.constructor = ApiGlobe;
  * values for a layer.
  */
 function preprocessLayer(layer, provider) {
-    if (!layer.updateStrategy) {
-        layer.updateStrategy = {
-            type: STRATEGY_MIN_NETWORK_TRAFFIC,
-        };
+    let promise = Promise.resolve(layer);
+    if (provider.getCapabilities) {
+        promise = provider.getCapabilities(layer);
     }
 
-    if (provider.tileInsideLimit) {
-        layer.tileInsideLimit = provider.tileInsideLimit.bind(provider);
-    }
+    return promise.then((layer) => {
+        if (!layer.updateStrategy) {
+            layer.updateStrategy = {
+                type: STRATEGY_MIN_NETWORK_TRAFFIC,
+            };
+        }
 
-    if (provider.tileTextureCount) {
-        layer.tileTextureCount = provider.tileTextureCount.bind(provider);
-    }
+        if (provider.tileInsideLimit) {
+            layer.tileInsideLimit = provider.tileInsideLimit.bind(provider);
+        }
 
-    if (provider.preprocessDataLayer) {
-        provider.preprocessDataLayer(layer);
-    }
+        if (provider.tileTextureCount) {
+            layer.tileTextureCount = provider.tileTextureCount.bind(provider);
+        }
+
+        if (provider.preprocessDataLayer) {
+            provider.preprocessDataLayer(layer);
+        }
+        return layer;
+    });
 }
 
 /**
@@ -85,51 +92,56 @@ ApiGlobe.prototype.init = function init() {
  * Add the geometry layer to the scene.
  */
 ApiGlobe.prototype.addGeometryLayer = function addGeometryLayer(layer) {
-    preprocessLayer(layer, this.scene.scheduler.getProtocolProvider(layer.protocol));
-    const map = this.scene.getMap();
-    if (this.getLayerById(layer.id)) {
-      // eslint-disable-next-line no-console
-        console.error(`Error : id "${layer.id}" already exist, WARNING your layer isn't added`);
-    } else {
-        map.layersConfiguration.addGeometryLayer(layer);
-        this.viewerDiv.dispatchEvent(eventLayerAdded);
-    }
+    return preprocessLayer(layer, this.scene.scheduler.getProtocolProvider(layer.protocol)).then((layer) => {
+        if (this.getLayerById(layer.id)) {
+          // eslint-disable-next-line no-console
+            throw new Error(`Error : id "${layer.id}" already exist, WARNING your layer isn't added`);
+        }
+        this.scene.map.layersConfiguration.addGeometryLayer(layer);
+        return layer;
+    });
 };
 
 /**
  * This function adds an imagery layer to the scene. The layer id must be unique. The protocol rules wich parameters are then needed for the function.
- * @constructor
  * @param {Layer} layer.
+ * @return {layer} The layer object.
  */
 ApiGlobe.prototype.addImageryLayer = function addImageryLayer(layer) {
-    preprocessLayer(layer, this.scene.scheduler.getProtocolProvider(layer.protocol));
-    const map = this.scene.getMap();
-    if (this.getLayerById(layer.id)) {
-      // eslint-disable-next-line no-console
-        console.error(`Error : id "${layer.id}" already exist, WARNING your layer isn't added`);
-    } else {
-        map.layersConfiguration.addColorLayer(layer);
-        this.viewerDiv.dispatchEvent(eventLayerAdded);
-    }
+    return preprocessLayer(layer, this.scene.scheduler.getProtocolProvider(layer.protocol)).then((layer) => {
+        if (this.getLayerById(layer.id)) {
+            throw new Error(`Error : id "${layer.id}" already exist, WARNING your layer isn't added`);
+        }
+        this.scene.map.layersConfiguration.addColorLayer(layer);
+        return layer;
+    });
 };
 
 /**
- * This function adds an imagery layer to the scene using a JSON file. The layer id must be unique. The protocol rules wich parameters are then needed for the function.
- * @constructor
- * @param {Layer} layer.
+ * This function adds an imagery layer to the scene using a JSON file. The
+ * layer id must be unique. The protocol rules wich parameters are then needed
+ * for the function.
+ *
+ * The json must contain the getCapabilities information. GetCapabilities will
+ * not be called when adding a layer this way.
+ *
+ * @param {url} the url of the json describing the layer.
  * @return     {layer}  The Layer.
  */
 
 ApiGlobe.prototype.addImageryLayerFromJSON = function addImageryLayerFromJSON(url) {
     return Fetcher.json(url).then((result) => {
-        this.addImageryLayer(result);
+        result.queryCapabilities = false;
+        return this.addImageryLayer(result);
     });
 };
 
 /**
- * This function adds an imagery layer to the scene using an array of JSON files. The layer id must be unique. The protocol rules wich parameters are then needed for the function.
- * @constructor
- * @param {Layers} array - An array of JSON files.
+ * This function adds an imagery layer to the scene using an array of urls of JSON
+ * files. The layer id must be unique. The protocol rules wich parameters are
+ * then needed for the function. Calls ApiGlobe.prototye.addimageryLayerFromJSON internally.
+ *
+ * @param {Layers} array - An array of JSON files urls.
  * @return     {layer}  The Layers.
  */
 
@@ -199,15 +211,13 @@ ApiGlobe.prototype.removeImageryLayer = function removeImageryLayer(id) {
  */
 
 ApiGlobe.prototype.addElevationLayer = function addElevationLayer(layer) {
-    preprocessLayer(layer, this.scene.scheduler.getProtocolProvider(layer.protocol));
-    const map = this.scene.getMap();
-    if (this.getLayerById(layer.id)) {
-      // eslint-disable-next-line no-console
-        console.error(`Error : id "${layer.id}" already exist, WARNING your layer isn't added`);
-    } else {
-        map.layersConfiguration.addElevationLayer(layer);
-        this.viewerDiv.dispatchEvent(eventLayerAdded);
-    }
+    return preprocessLayer(layer, this.scene.scheduler.getProtocolProvider(layer.protocol)).then((layer) => {
+        if (this.getLayerById(layer.id)) {
+            throw new Error(`Error : id "${layer.id}" already exist, WARNING your layer isn't added`);
+        }
+        this.scene.map.layersConfiguration.addElevationLayer(layer);
+        return layer;
+    });
 };
 
 /**
@@ -224,7 +234,8 @@ ApiGlobe.prototype.addElevationLayer = function addElevationLayer(layer) {
 
 ApiGlobe.prototype.addElevationLayersFromJSON = function addElevationLayersFromJSON(url) {
     return Fetcher.json(url).then((result) => {
-        this.addElevationLayer(result);
+        result.queryCapabilities = false;
+        return this.addElevationLayer(result);
     });
 };
 

@@ -56,10 +56,13 @@ WMS_Provider.prototype.url = function url(bbox, layer) {
 
 WMS_Provider.prototype.preprocessDataLayer = function preprocessDataLayer(layer) {
     if (!layer.name) {
-        throw new Error('layerName is required.');
+        throw new Error(`Layer ${layer.id}: layerName is required.`);
     }
     if (!layer.bbox) {
-        throw new Error('bbox is required');
+        throw new Error(`Layer ${layer.id}: bbox is required`);
+    }
+    if (!layer.projection) {
+        throw new Error(`Layer ${layer.id}: projection is required`);
     }
 
     layer.bbox = new BoundingBox(
@@ -68,8 +71,9 @@ WMS_Provider.prototype.preprocessDataLayer = function preprocessDataLayer(layer)
         layer.bbox[2], layer.bbox[3]);
 
     layer.bbox_url = layer.bbox_url || 'swne';
-    layer.format = layer.options.mimetype || 'image/png';
-    layer.width = layer.heightMapWidth || 256;
+    layer.format = layer.mimetype || 'image/png';
+    layer.width = layer.width || 256;
+    layer.height = layer.height || 256;
     layer.version = layer.version || '1.3.0';
     layer.style = layer.style || '';
     layer.transparent = layer.transparent || false;
@@ -83,7 +87,7 @@ WMS_Provider.prototype.preprocessDataLayer = function preprocessDataLayer(layer)
                   }&BBOX=%bbox` +
                   `&CRS=${layer.projection
                   }&WIDTH=${layer.width
-                  }&HEIGHT=${layer.width}`;
+                  }&HEIGHT=${layer.height}`;
 };
 
 WMS_Provider.prototype.tileInsideLimit = function tileInsideLimit(tile, layer) {

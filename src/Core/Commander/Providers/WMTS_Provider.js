@@ -59,6 +59,58 @@ WMTS_Provider.prototype.removeLayer = function removeLayer(/* idLayer*/) {
 
 };
 
+WMTS_Provider.prototype.getCapabilities = function getCapabilities(layer) {
+    // get capabilities
+    return Fetcher.xml(`${layer.url}?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetCapabilities`).then((xml) => {
+        let elem;
+        for (elem of xml.querySelectorAll('Layer')) {
+            if (elem.querySelector('Identifier').textContent.trim() === layer.name) {
+                break;
+            }
+        }
+        if (!elem) {
+            throw new Error(`${layer.name} not found for id ${layer.id}`);
+        }
+
+        // check the format
+        const supportedFormat = elem.querySelectorAll('Format');
+        if (supportedFormat.length === 1) {
+            layer.mimetype = supportedFormat[0].textContent.trim();
+        } else if (layer.mimetype) {
+            // sanity check: does the user have asked for a configured mimetype?
+            let found = false;
+            for (const format of supportedFormat) {
+                if (layer.mimetype === format.textContent.trim()) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                throw new Error(`Mimetype ${layer.mimetype} not supported for layer ${layer.id}: ${layer.name}`);
+            }
+        } else {
+            throw new Error(`No mimetype for layer ${layer.id}: ${layer.name} configured,
+                    but getCapabilities returned several Format tag. Please choose and set it to layer.mimetype.`);
+        }
+
+        layer.tileMatrixSet = elem.querySelector('TileMatrixSet').textContent.trim();
+        console.log('TileMatrixSet', layer.tileMatrixSet, layer.name);
+
+        // parse limits
+        layer.tileMatrixSetLimits = {};
+        for (const tileMatrixLimit of elem.querySelectorAll('TileMatrixLimits')) {
+            layer.tileMatrixSetLimits[tileMatrixLimit.querySelector('TileMatrix').textContent.trim()] = {
+                minTileRow: tileMatrixLimit.querySelector('MinTileRow').textContent.trim(),
+                maxTileRow: tileMatrixLimit.querySelector('MaxTileRow').textContent.trim(),
+                minTileCol: tileMatrixLimit.querySelector('MinTileCol').textContent.trim(),
+                maxTileCol: tileMatrixLimit.querySelector('MaxTileCol').textContent.trim(),
+            };
+        }
+        return layer;
+    });
+};
+
 WMTS_Provider.prototype.preprocessDataLayer = function preprocessDataLayer(layer) {
     layer.fx = layer.fx || 0.0;
     if (layer.protocol === 'wmtsc') {
@@ -67,21 +119,20 @@ WMTS_Provider.prototype.preprocessDataLayer = function preprocessDataLayer(layer
             max: 20,
         };
     } else {
-        var options = layer.options;
-        options.version = options.version || '1.0.0';
-        options.tileMatrixSet = options.tileMatrixSet || 'WGS84';
-        options.mimetype = options.mimetype || 'image/png';
-        options.style = options.style || 'normal';
-        options.projection = options.projection || 'EPSG:3857';
+        layer.version = layer.version || '1.0.0';
+        layer.tileMatrixSet = layer.tileMatrixSet || 'WGS84';
+        layer.mimetype = layer.mimetype || 'image/png';
+        layer.style = layer.style || 'normal';
+        layer.projection = layer.projection || 'EPSG:3857';
         var newBaseUrl = `${layer.url
-            }?LAYER=${options.name
-            }&FORMAT=${options.mimetype
+            }?LAYER=${layer.name
+            }&FORMAT=${layer.mimetype
             }&SERVICE=WMTS` +
             '&VERSION=1.0.0' +
-            `&REQUEST=GetTile&STYLE=normal&TILEMATRIXSET=${options.tileMatrixSet}`;
+            `&REQUEST=GetTile&STYLE=normal&TILEMATRIXSET=${layer.tileMatrixSet}`;
 
         newBaseUrl += '&TILEMATRIX=%TILEMATRIX&TILEROW=%ROW&TILECOL=%COL';
-        var arrayLimits = Object.keys(options.tileMatrixSetLimits);
+        var arrayLimits = Object.keys(layer.tileMatrixSetLimits);
 
         var size = arrayLimits.length;
         var maxZoom = Number(arrayLimits[size - 1]);
@@ -110,7 +161,7 @@ WMTS_Provider.prototype.url = function url(coWMTS, layer) {
  * @returns {WMTS_Provider_L15.WMTS_Provider.prototype@pro;_IoDriver@call;read@call;then}
  */
 WMTS_Provider.prototype.getXbilTexture = function getXbilTexture(tile, layer, parameters) {
-    var cooWMTS = tile.wmtsCoords[layer.options.tileMatrixSet][0];
+    var cooWMTS = tile.wmtsCoords[layer.tileMatrixSet][0];
     var pitch = new THREE.Vector3(0.0, 0.0, 1.0);
 
     if (parameters.ancestor) {
@@ -205,7 +256,7 @@ function computeTileWMTSCoordinates(tile, wmtsLayer, projection) {
         tile.wmtsCoords = {};
     }
 
-    const tileMatrixSet = wmtsLayer.options.tileMatrixSet;
+    const tileMatrixSet = wmtsLayer.tileMatrixSet;
     if (!(tileMatrixSet in tile.wmtsCoords)) {
         const tileCoord = projection.WGS84toWMTS(tile.bbox);
 
@@ -227,11 +278,11 @@ WMTS_Provider.prototype.executeCommand = function executeCommand(command) {
         'image/x-bil;bits=32': this.getXbilTexture.bind(this),
     };
 
-    var func = supportedFormats[layer.options.mimetype];
+    var func = supportedFormats[layer.mimetype];
     if (func) {
         return func(tile, layer, command);
     } else {
-        return Promise.reject(new Error(`Unsupported mimetype ${layer.options.mimetype}`));
+        return Promise.reject(new Error(`Unsupported mimetype ${layer.mimetype}`));
     }
 };
 
@@ -250,7 +301,7 @@ WMTS_Provider.prototype.computeLevelToDownload = function computeLevelToDownload
 WMTS_Provider.prototype.tileTextureCount = function tileTextureCount(tile, layer) {
     computeTileWMTSCoordinates(tile, layer, this.projection);
 
-    const tileMatrixSet = layer.options.tileMatrixSet;
+    const tileMatrixSet = layer.tileMatrixSet;
     return tile.wmtsCoords[tileMatrixSet][1].row - tile.wmtsCoords[tileMatrixSet][0].row + 1;
 };
 
@@ -268,7 +319,7 @@ WMTS_Provider.prototype.getColorTextures = function getColorTextures(tile, layer
     }
     // Request parent's texture if no texture at all
     if (this.tileInsideLimit(tile, layer)) {
-        var bcoord = tile.wmtsCoords[layer.options.tileMatrixSet];
+        var bcoord = tile.wmtsCoords[layer.tileMatrixSet];
 
         // WARNING the direction textures is important
         for (var row = bcoord[1].row; row >= bcoord[0].row; row--) {
