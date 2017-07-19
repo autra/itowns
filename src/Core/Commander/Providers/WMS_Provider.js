@@ -54,6 +54,67 @@ WMS_Provider.prototype.url = function url(bbox, layer) {
     return layer.customUrl.replace('%bbox', bboxInUnit);
 };
 
+WMS_Provider.prototype.getCapabilities = function getCapabilities(layer) {
+    return Fetcher.xml(`${layer.url}?SERVICE=WMS&VERSION=${layer.version}&REQUEST=GetCapabilities`).then((xml) => {
+        console.log("wms", xml);
+        let version = xml.documentElement.getAttribute('version');
+        // TODO warn if layer.version is different
+        layer.version = version;
+
+        let elem;
+        let layersXML = xml.querySelectorAll('Layer');
+        if (!layer.name && layersXML.length === 1) {
+            elem = layersXML[0];
+        } else {
+            for (elem of xml.querySelectorAll('Layer')) {
+                if (elem.querySelector('Name').textContent.trim() === layer.name) {
+                    break;
+                }
+            }
+        }
+
+        if (!elem) {
+            throw new Error(`${layer.name} not found for id ${layer.id}`);
+        }
+
+        // get all the supported CRS by this layer
+        function parseLayerCrs(layer) {
+            let crsList = [];
+
+            // parse CRS for one layer
+            if (layer.version === '1.1.1') {
+                for (const srs of elem.querySelectorAll('SRS')) {
+                    crsList.push(srs.textContent.trim());
+                }
+            } else if (layer.version === '1.0.0') {
+                crsList = crsList.concat(elem.querySelector('SRS').textContent.trim().split(' '));
+            } else if (layer.version === '1.3.0') {
+                for (const srs of elem.querySelectorAll('CRS')) {
+                    crsList.push(srs.textContent.trim());
+                }
+            }
+            if (layer.parentElement && layer.parentElement.nodeName === 'Layer') {
+                crsList.concat(parseLayerCrs(layer.parentElement));
+            }
+            return crsList;
+        }
+        const crsList = parseLayerCrs(layer);
+        if (layer.projection) {
+            if (!crsList.includes(layer.projection)) {
+                throw new Error(`Layer ${layer.id} declared projection ${layer.projection}, but WMS server does not support it`);
+            }
+        } else if (crsList.length === 1) {
+            layer.projection = crsList[0];
+        } else {
+            throw new Error(`Layer ${layer.id} does not specify which projection to use among supported projection by server: ${crsList}`);
+        }
+
+        console.log(elem);
+
+        return layer;
+    });
+};
+
 WMS_Provider.prototype.preprocessDataLayer = function preprocessDataLayer(layer) {
     if (!layer.name) {
         throw new Error(`Layer ${layer.id}: layerName is required.`);

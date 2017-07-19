@@ -61,7 +61,9 @@ WMTS_Provider.prototype.removeLayer = function removeLayer(/* idLayer*/) {
 
 WMTS_Provider.prototype.getCapabilities = function getCapabilities(layer) {
     // get capabilities
-    return Fetcher.xml(`${layer.url}?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetCapabilities`).then((xml) => {
+    // TODO:
+    // - version parameter (+ check support server)
+    return Fetcher.xml(`${layer.url}?SERVICE=WMTS&REQUEST=GetCapabilities`).then((xml) => {
         let elem;
         for (elem of xml.querySelectorAll('Layer')) {
             if (elem.querySelector('Identifier').textContent.trim() === layer.name) {
@@ -80,7 +82,7 @@ WMTS_Provider.prototype.getCapabilities = function getCapabilities(layer) {
             // sanity check: does the user have asked for a configured mimetype?
             let found = false;
             for (const format of supportedFormat) {
-                if (layer.mimetype === format.textContent.trim()) {
+                if (layer.mimetype === format.textContent.trim(trim)) {
                     found = true;
                     break;
                 }
