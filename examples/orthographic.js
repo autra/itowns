@@ -99,7 +99,7 @@ viewerDiv.addEventListener('mouseup', function mouseUp() {
 });
 
 
-itowns.Fetcher.json('./test.geojson').then(json => {
+itowns.Fetcher.json('./test.geojson').then(function (json) {
     const obj = itowns.Feature2Mesh.convert({ altitude: 1000 })(itowns.GeoJSON2Features.parse('EPSG:3857', json));
     view.scene.add(obj);
     view.notifyChange(true);
