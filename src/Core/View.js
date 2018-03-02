@@ -545,8 +545,8 @@ View.prototype.pickObjectsAt = function pickObjectsAt(mouseOrEvt, ...where) {
         this.getLayers(l => l.type == 'geometry') :
         [...where];
 
-    const mouse = (mouseOrEvt.x === undefined) ?
-        this.eventToViewCoords(mouseOrEvt) : mouseOrEvt;
+    const mouse = (mouseOrEvt.type === undefined) ?
+        mouseOrEvt : this.eventToViewCoords(mouseOrEvt);
 
     for (const source of sources) {
         if (source instanceof GeometryLayer ||
