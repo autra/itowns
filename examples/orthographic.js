@@ -98,5 +98,13 @@ viewerDiv.addEventListener('mouseup', function mouseUp() {
     dragStartPosition = undefined;
 });
 
+
+itowns.Fetcher.json('./test.geojson').then(json => {
+    const obj = itowns.Feature2Mesh.convert({ altitude: 1000 })(itowns.GeoJSON2Features.parse('EPSG:3857', json));
+    view.scene.add(obj);
+    view.notifyChange(true);
+});
+
+
 // Request redraw
 view.notifyChange(true);
