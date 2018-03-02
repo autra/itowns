@@ -105,11 +105,10 @@ function coordinatesToExtrudedVertices(contour, top, bottom, target, offset) {
  * param  {number} id - id of the feature
  * return {Coordinate[], propertie[] } {contour, properties}
  */
-function extractFeature(coordinates, properties, id) {
+function extractContour(coordinates, id) {
     const featureVertices = coordinates.featureVertices[id];
     const contour = coordinates.coordinates.slice(featureVertices.offset, featureVertices.offset + featureVertices.count);
-    const property = properties[id].properties;
-    return { contour, property };
+    return contour;
 }
 
 /*
@@ -148,13 +147,13 @@ function coordinateToPoints(coordinates, properties, options) {
 
     /* eslint-disable guard-for-in */
     for (const id in coordinates.featureVertices) {
-        const { contour, property } = extractFeature(coordinates, properties, id);
+        const contour = extractContour(coordinates, id);
         // get altitude from properties
-        const altitude = getAltitude(options, property, contour);
+        const altitude = getAltitude(options, properties, contour);
         coordinatesToVertices(contour, altitude, vertices, offset * 3);
 
         // assign color to each point
-        const color = getColor(options, property);
+        const color = getColor(options, properties);
         fillColorArray(colors, offset, contour.length, color.r * 255, color.g * 255, color.b * 255);
 
         // increment offset
@@ -174,9 +173,9 @@ function coordinateToLines(coordinates, properties, options) {
 
     /* eslint-disable-next-line */
     for (const id in coordinates.featureVertices) {
-        const { contour, property } = extractFeature(coordinates, properties, id);
+        const contour = extractContour(coordinates, id);
         // get altitude from properties
-        const altitude = getAltitude(options, property, contour);
+        const altitude = getAltitude(options, properties, contour);
         coordinatesToVertices(contour, altitude, vertices, offset * 3);
 
         // set indices
@@ -189,7 +188,7 @@ function coordinateToLines(coordinates, properties, options) {
         }
 
         // assign color to each point
-        const color = getColor(options, property);
+        const color = getColor(options, properties);
         fillColorArray(colors, offset, contour.length, color.r * 255, color.g * 255, color.b * 255);
 
         // increment offset
@@ -212,9 +211,9 @@ function coordinateToPolygon(coordinates, properties, options) {
     /* eslint-disable-next-line */
     for (const id in coordinates.featureVertices) {
         // extract contour coodinates and properties of one feature
-        const { contour, property } = extractFeature(coordinates, properties, id);
+        const contour = extractContour(coordinates, id);
         // get altitude and extrude amount from properties
-        const altitudeBottom = getAltitude(options, property, contour);
+        const altitudeBottom = getAltitude(options, properties, contour);
         minAltitude = Math.min(minAltitude, altitudeBottom);
         const altitudeTopFace = altitudeBottom;
         // add vertices of the top face
@@ -226,7 +225,7 @@ function coordinateToPolygon(coordinates, properties, options) {
             indices.push(offset + indice);
         }
         // assign color to each point
-        const color = getColor(options, property);
+        const color = getColor(options, properties);
         fillColorArray(colors, offset, contour.length, color.r * 255, color.g * 255, color.b * 255);
         // increment offset
         offset += contour.length;
@@ -250,11 +249,11 @@ function coordinateToPolygonExtruded(coordinates, properties, options) {
     /* eslint-disable-next-line */
     for (const id in coordinates.featureVertices) {
         // extract contour coodinates and properties of one feature
-        const { contour, property } = extractFeature(coordinates, properties, id);
+        const contour = extractContour(coordinates, id);
         // get altitude and extrude amount from properties
-        const altitudeBottom = getAltitude(options, property, contour);
+        const altitudeBottom = getAltitude(options, properties, contour);
         minAltitude = Math.min(minAltitude, altitudeBottom);
-        const extrudeAmount = getExtrude(options, property);
+        const extrudeAmount = getExtrude(options, properties);
         // altitudeTopFace is the altitude of the visible top face.
         const altitudeTopFace = altitudeBottom + extrudeAmount;
         // add vertices of the top face
@@ -269,7 +268,7 @@ function coordinateToPolygonExtruded(coordinates, properties, options) {
         offset2 += nbVertices * 2;
         addFaces(indices, contour.length, offset);
         // assign color to each point
-        const color = getColor(options, property);
+        const color = getColor(options, properties);
         fillColorArray(colors, offset, contour.length, color.r * 255, color.g * 255, color.b * 255);
         offset += contour.length;
         fillColorArray(colors, offset, contour.length, color.r * 155, color.g * 155, color.b * 155);
@@ -328,20 +327,18 @@ function coordinatesToMesh(coordinates, properties, options) {
 
 function featureToThree(feature, options) {
     const mesh = coordinatesToMesh(feature.geometry, feature.properties, options);
-    mesh.properties = feature.properties;
+    mesh.userData.properties = feature.properties;
     return mesh;
 }
 
 function featureCollectionToThree(featureCollection, options) {
     const group = new THREE.Group();
     group.minAltitude = Infinity;
-    for (const geometry of featureCollection.geometries) {
-        const properties = featureCollection.features;
-        const mesh = coordinatesToMesh(geometry, properties, options);
-        group.add(mesh);
+    for (const feat of featureCollection) {
+        const mesh = featureToThree(feat, options);
         group.minAltitude = Math.min(mesh.minAltitude, group.minAltitude);
+        group.add(mesh);
     }
-    group.features = featureCollection.features;
     return group;
 }
 
@@ -350,7 +347,7 @@ export default {
     convert(options = {}) {
         return function _convert(feature) {
             if (!feature) return;
-            if (feature.geometries) {
+            if (feature.length) {
                 return featureCollectionToThree(feature, options);
             } else {
                 return featureToThree(feature, options);

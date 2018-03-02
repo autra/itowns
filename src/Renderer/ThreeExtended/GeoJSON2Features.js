@@ -62,6 +62,7 @@ const GeometryToCoordinates = {
         }
         return { type: 'point', coordinates, extent };
     },
+    // TODO support holes
     polygon(crsIn, crsOut, coordsIn, filteringExtent, options) {
         const extent = options.buildExtent ? new Extent(crsOut, Infinity, -Infinity, Infinity, -Infinity) : undefined;
         const coordinates = readCoordinates(crsIn, crsOut, coordsIn, extent);
@@ -179,65 +180,12 @@ function readFeature(crsIn, crsOut, json, filteringExtent, options) {
     return feature;
 }
 
-function concatGeometries(result, geometry) {
-    const idx = result.geometries.length;
-    geometry.forEach((f, index) => { f.properties._idx = index; f.properties._meshIdx = idx; });
-    const g = geometry.map(p => p.geometry);
-    const p = GeometryToCoordinates.merge(...g);
-    result.geometries.push(p);
-    if (p.extent) {
-        if (result.extent) {
-            result.extent.union(p.extent);
-        } else {
-            result.extent = p.extent.clone();
-        }
-    }
-}
-
-function readFeatureCollection(crsIn, crsOut, json, filteringExtent, options) {
-    const collec = [];
-
-    let featureIndex = 0;
-    for (const feature of json.features) {
-        const f = readFeature(crsIn, crsOut, feature, filteringExtent, options);
-        if (f) {
-            f.geometry.featureIndex = featureIndex;
-            collec.push(f);
-            featureIndex++;
-        }
-    }
-    if (collec.length) {
-        // sort by types
-        const geom = {
-            points: collec.filter(c => c.geometry.type === 'point'),
-            lines: collec.filter(c => c.geometry.type === 'linestring'),
-            polygons: collec.filter(c => c.geometry.type === 'polygon'),
-        };
-        const result = { geometries: [] };
-        if (geom.points.length) {
-            concatGeometries(result, geom.points);
-        }
-        if (geom.lines.length) {
-            concatGeometries(result, geom.lines);
-        }
-        if (geom.polygons.length) {
-            concatGeometries(result, geom.polygons);
-        }
-        // remember individual features properties
-        // eslint-disable-next-line arrow-body-style
-        result.features = collec.map((c) => { return { properties: c.properties }; });
-        if (result.geometries.length) {
-            return result;
-        }
-    }
-}
-
 export default {
     parse(crsOut, json, filteringExtent, options = {}) {
         options.crsIn = options.crsIn || readCRS(json);
         switch (json.type.toLowerCase()) {
             case 'featurecollection':
-                return readFeatureCollection(options.crsIn, crsOut, json, filteringExtent, options);
+                return json.features.map(f => readFeature(options.crsIn, crsOut, f, filteringExtent, options));
             case 'feature':
                 return readFeature(options.crsIn, crsOut, json, filteringExtent, options);
             default:
