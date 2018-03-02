@@ -76,6 +76,7 @@ viewerDiv.addEventListener('mousedown', function mouseDown(event) {
         bottom: view.camera.camera3D.bottom,
     };
 });
+var obj;
 viewerDiv.addEventListener('mousemove', function mouseMove(event) {
     var width;
     var deltaX;
@@ -93,17 +94,33 @@ viewerDiv.addEventListener('mousemove', function mouseMove(event) {
         view.camera.camera3D.bottom = dragCameraStart.bottom + deltaY;
         view.notifyChange(true);
     }
+
+    if (obj) {
+        const intersects = view.pickObjectsAt(
+                event,
+                obj);
+        console.log(intersects);
+    }
+
+
 });
 viewerDiv.addEventListener('mouseup', function mouseUp() {
     dragStartPosition = undefined;
 });
 
 
-itowns.Fetcher.json('./test.geojson').then(function (json) {
-    const obj = itowns.Feature2Mesh.convert({ altitude: 1000 })(itowns.GeoJSON2Features.parse('EPSG:3857', json));
+itowns.Fetcher.json('../test.geojson').then(function (json) {
+    obj = itowns.Feature2Mesh.convert()(itowns.GeoJSON2Features.parse('EPSG:3857', json));
+    obj.children[0].renderOrder = 1;
     view.scene.add(obj);
     view.notifyChange(true);
 });
+/*itowns.Fetcher.json('../test2.geojson').then(json => {
+    const obj = itowns.Feature2Mesh.convert()(itowns.GeoJSON2Features.parse('EPSG:3857', json));
+    obj.children[0].renderOrder = 1;
+    view.scene.add(obj);
+    view.notifyChange(true);
+}); */
 
 
 // Request redraw
