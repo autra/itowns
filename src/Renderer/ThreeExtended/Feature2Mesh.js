@@ -346,9 +346,9 @@ export default {
 
     convert(options = {}) {
         return function _convert(feature) {
-            if (!feature) return;
-            if (feature.length) {
-                return featureCollectionToThree(feature, options);
+            if (!feature || feature.length === 0) return;
+            if (feature.features) {
+                return featureCollectionToThree(feature.features, options);
             } else {
                 return featureToThree(feature, options);
             }

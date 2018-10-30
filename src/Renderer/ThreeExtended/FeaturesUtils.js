@@ -116,30 +116,21 @@ export default {
      */
     filterFeaturesUnderCoordinate(coordinate, features, epsilon = 0.1) {
         const result = [];
-        if (features.geometries) {
+        if (features.features) {
             if (features.extent && !features.extent.isPointInside(coordinate, epsilon)) {
                 return result;
             }
-            for (const feature of features.geometries) {
-                if (feature.extent && !feature.extent.isPointInside(coordinate, epsilon)) {
+            for (const feature of features.features) {
+                if (feature.geometry.extent && !feature.geometry.extent.isPointInside(coordinate, epsilon)) {
                     continue;
                 }
-                /* eslint-disable guard-for-in */
-                for (const id in feature.featureVertices) {
-                    const polygon = feature.featureVertices[id];
-                    if (polygon.extent && !polygon.extent.isPointInside(coordinate, epsilon)) {
-                        continue;
-                    }
-                    const properties = features.features[id].properties;
-                    const coordinates = feature.coordinates.slice(polygon.offset, polygon.offset + polygon.count);
-                    const under = isFeatureUnderCoordinate(coordinate, feature.type, coordinates, epsilon);
-                    if (under) {
-                        result.push({
-                            coordinates: under.coordinates || coordinates,
-                            type: feature.type,
-                            properties,
-                        });
-                    }
+                const under = isFeatureUnderCoordinate(coordinate, feature.geometry.type, feature.geometry.coordinates, epsilon);
+                if (under) {
+                    result.push({
+                        coordinates: under.coordinates || feature.geometry.coordinates,
+                        type: feature.geometry.type,
+                        properties: feature.properties,
+                    });
                 }
             }
         } else if (features.geometry) {

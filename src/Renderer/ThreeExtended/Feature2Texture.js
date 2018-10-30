@@ -70,14 +70,14 @@ function drawFeature(ctx, feature, origin, dimension, extent, style = {}) {
 }
 
 function drawFeatureCollection(ctx, collection, origin, dimension, extent, style = {}) {
-    for (const features of collection.geometries) {
+    for (const feat of collection.features) {
         /* eslint-disable guard-for-in */
-        if (features.extent.intersectsExtent(extent)) {
-            for (const id in features.featureVertices) {
-                const polygon = features.featureVertices[id];
-                const properties = collection.features[id].properties;
-                const coordinates = features.coordinates.slice(polygon.offset, polygon.offset + polygon.count);
-                if (features.type === 'point') {
+        if (feat.geometry.extent.intersectsExtent(extent)) {
+            for (const id in feat.geometry.featureVertices) {
+                const polygon = feat.geometry.featureVertices[id];
+                const properties = feat.properties;
+                const coordinates = feat.geometry.coordinates.slice(polygon.offset, polygon.offset + polygon.count);
+                if (feat.geometry.type === 'point') {
                     drawPoint(ctx, coordinates[0], origin, dimension, style);
                 } else if (polygon.extent.intersectsExtent(extent)) {
                     ctx.globalCompositeOperation = 'destination-over';
@@ -102,7 +102,7 @@ export default {
         const ctx = c.getContext('2d');
 
         // Draw the canvas
-        if (feature.geometries) {
+        if (feature.features) {
             drawFeatureCollection(ctx, feature, origin, dimension, extent, style);
         } else {
             drawFeature(ctx, feature, origin, dimension, extent, style);

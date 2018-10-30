@@ -60,7 +60,7 @@ const GeometryToCoordinates = {
         if (filteringExtent) {
             coordinates = coordinates.filter(c => filteringExtent.isPointInside(c));
         }
-        return { type: 'point', coordinates, extent };
+        return { type: 'point', coordinates, extent, featureVertices: [{ offset: 0, count: coordinates.length, extent }] };
     },
     // TODO support holes
     polygon(crsIn, crsOut, coordsIn, filteringExtent, options) {
@@ -69,7 +69,7 @@ const GeometryToCoordinates = {
         if (filteringExtent && !filteringExtent.isPointInside(coordinates[0])) {
             return;
         }
-        return { type: 'polygon', coordinates, extent };
+        return { type: 'polygon', coordinates, extent, featureVertices: [{ offset: 0, count: coordinates.length, extent }] };
     },
     lineString(crsIn, crsOut, coordsIn, filteringExtent, options) {
         const extent = options.buildExtent ? new Extent(crsOut, Infinity, -Infinity, Infinity, -Infinity) : undefined;
@@ -77,11 +77,12 @@ const GeometryToCoordinates = {
         if (filteringExtent && !filteringExtent.isPointInside(coordinates[0])) {
             return;
         }
-        return { type: 'linestring', coordinates, extent };
+        return { type: 'linestring', coordinates, extent, featureVertices: [{ offset: 0, count: coordinates.length, extent }] };
     },
     merge(...geoms) {
         let result;
         let offset = 0;
+        let featureIndex = 0;
         for (const geom of geoms) {
             if (!geom) {
                 continue;
@@ -92,7 +93,7 @@ const GeometryToCoordinates = {
                 if (geom.extent) {
                     result.extent = geom.extent.clone();
                 }
-                result.featureVertices = {};
+                result.featureVertices = [];
             } else {
                 // merge coordinates
                 for (const coordinate of geom.coordinates) {
@@ -100,11 +101,16 @@ const GeometryToCoordinates = {
                 }
                 // union extent if present
                 if (geom.extent) {
-                    result.extent.union(geom.extent);
+                    if (result.extent) {
+                        result.extent.union(geom.extent);
+                    } else {
+                        result.extent = geom.extent.clone();
+                    }
                 }
             }
-            result.featureVertices[geom.featureIndex || 0] = { offset, count: geom.coordinates.length, extent: geom.extent };
+            result.featureVertices[featureIndex] = { offset, count: geom.coordinates.length, extent: geom.extent };
             offset = result.coordinates.length;
+            featureIndex++;
         }
         return result;
     },
@@ -184,8 +190,19 @@ export default {
     parse(crsOut, json, filteringExtent, options = {}) {
         options.crsIn = options.crsIn || readCRS(json);
         switch (json.type.toLowerCase()) {
-            case 'featurecollection':
-                return json.features.map(f => readFeature(options.crsIn, crsOut, f, filteringExtent, options));
+            case 'featurecollection': {
+                const result = {};
+                result.features = json.features
+                    .map(f => readFeature(options.crsIn, crsOut, f, filteringExtent, options))
+                    .filter(f => !!f);
+                if (options.buildExtent) {
+                    result.extent = new Extent(crsOut, Infinity, -Infinity, Infinity, -Infinity);
+                    for (const feat of result.features) {
+                        result.extent.union(feat.geometry.extent);
+                    }
+                }
+                return result;
+            }
             case 'feature':
                 return readFeature(options.crsIn, crsOut, json, filteringExtent, options);
             default:
