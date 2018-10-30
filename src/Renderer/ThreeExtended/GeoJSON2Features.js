@@ -183,6 +183,10 @@ function readFeature(crsIn, crsOut, json, filteringExtent, options) {
         }
     }
 
+    if (options.featureCb instanceof Function) {
+        options.featureCb(feature);
+    }
+
     return feature;
 }
 

@@ -41,6 +41,29 @@ promises.push(globeView.addLayer({
     transparent: true,
 }));
 
+globeView.addLayer({
+    type: 'color',
+    url: 'http://localhost:8080/examples/serpent.json',
+    protocol: 'rasterizer',
+    id: 'serpent',
+    name: 'serpent',
+    transparent: true,
+    options: {
+        featureCb: function (feat) {
+            feat.properties.stroke = feat.properties.tmtm > 500000 ? 'red' : 'yellow';
+            feat.properties['stroke-width'] = feat.properties.tmtm > 500000 ? '10.0' : '1.0';
+        }
+    }
+    });
+
+/*itowns.Fetcher.json( 'http://localhost:8080/examples/serpent.json').then(json => {
+    const features = itowns.GeoJSON2Features.parse('EPSG:3857', json, null, {});
+    const mesh = itowns.Feature2Mesh.convert({ altitude: 1000 })(features);
+
+    globeView.scene.add(mesh);
+    globeView.notifyChange(true);
+    }).catch( e => console.error(e)); */
+
 promises.push(globeView.addLayer({
     type: 'color',
     url: 'https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements/09-ariege/departement-09-ariege.geojson',

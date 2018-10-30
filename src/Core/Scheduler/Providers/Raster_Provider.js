@@ -58,7 +58,7 @@ export default {
         layer.projection = layer.projection || 'EPSG:4326';
         const parentCrs = parentLayer.extent.crs();
 
-        const options = { buildExtent: true, crsIn: layer.projection };
+        const options = { buildExtent: true, crsIn: layer.projection, featureCb: layer.options.featureCb };
 
         if (!(layer.extent instanceof Extent)) {
             layer.extent = new Extent(layer.projection, layer.extent).as(parentCrs);
