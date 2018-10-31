@@ -47,8 +47,8 @@ function createTextureFromVector(tile, layer) {
 
 export default {
     preprocessDataLayer(layer, view, scheduler, parentLayer) {
-        if (!layer.url) {
-            throw new Error('layer.url is required');
+        if (!layer.url && !layer.geojson) {
+            throw new Error('One of layer.url or layer.geojson is required');
         }
 
         layer.options = layer.options || {};
@@ -75,40 +75,47 @@ export default {
         // Otherwise artefacts appear at the outer edge
         layer.noTextureParentOutsideLimit = true;
 
-        return Fetcher.text(layer.url, layer.networkOptions).then((text) => {
-            let geojson;
-            const trimmedText = text.trim();
-            // We test the start of the string to choose a parser
-            if (trimmedText.startsWith('<')) {
-                // if it's an xml file, then it can be kml or gpx
-                const parser = new DOMParser();
-                const file = parser.parseFromString(text, 'application/xml');
-                if (file.documentElement.tagName.toLowerCase() === 'kml') {
-                    geojson = togeojson.kml(file);
-                } else if (file.documentElement.tagName.toLowerCase() === 'gpx') {
-                    geojson = togeojson.gpx(file);
-                    layer.style.stroke = layer.style.stroke || 'red';
-                    layer.extent = layer.extent.intersect(getExtentFromGpxFile(file).as(layer.extent.crs()));
-                } else if (file.documentElement.tagName.toLowerCase() === 'parsererror') {
-                    throw new Error('Error parsing XML document');
+        const geojsonPromise = layer.geojson ?
+            Promise.resolve(layer.geojson)
+            :
+            Fetcher.text(layer.url, layer.networkOptions).then((text) => {
+                let geojson;
+                const trimmedText = text.trim();
+                // We test the start of the string to choose a parser
+                if (trimmedText.startsWith('<')) {
+                    // if it's an xml file, then it can be kml or gpx
+                    const parser = new DOMParser();
+                    const file = parser.parseFromString(text, 'application/xml');
+                    if (file.documentElement.tagName.toLowerCase() === 'kml') {
+                        geojson = togeojson.kml(file);
+                    } else if (file.documentElement.tagName.toLowerCase() === 'gpx') {
+                        geojson = togeojson.gpx(file);
+                        layer.style.stroke = layer.style.stroke || 'red';
+                        layer.extent = layer.extent.intersect(getExtentFromGpxFile(file).as(layer.extent.crs()));
+                    } else if (file.documentElement.tagName.toLowerCase() === 'parsererror') {
+                        throw new Error('Error parsing XML document');
+                    } else {
+                        throw new Error('Unsupported xml file, only valid KML and GPX are supported, but no <gpx> or <kml> tag found.',
+                                file);
+                    }
+                } else if (trimmedText.startsWith('{') || trimmedText.startsWith('[')) {
+                    geojson = JSON.parse(text);
+                    if (geojson.type !== 'Feature' && geojson.type !== 'FeatureCollection') {
+                        throw new Error('This json is not a GeoJSON');
+                    }
                 } else {
-                    throw new Error('Unsupported xml file, only valid KML and GPX are supported, but no <gpx> or <kml> tag found.',
-                            file);
+                    throw new Error('Unsupported file: only well-formed KML, GPX or GeoJSON are supported');
                 }
-            } else if (trimmedText.startsWith('{') || trimmedText.startsWith('[')) {
-                geojson = JSON.parse(text);
-                if (geojson.type !== 'Feature' && geojson.type !== 'FeatureCollection') {
-                    throw new Error('This json is not a GeoJSON');
-                }
-            } else {
-                throw new Error('Unsupported file: only well-formed KML, GPX or GeoJSON are supported');
-            }
+                return geojson;
+            });
 
+        return geojsonPromise.then((geojson) => {
             if (geojson) {
                 layer.feature = GeoJSON2Features.parse(parentCrs, geojson, layer.extent, options);
                 layer.extent = layer.feature.extent || layer.feature.geometry.extent;
             }
         });
+
     },
     tileInsideLimit(tile, layer) {
         return tile.level >= layer.options.zoom.min && tile.level <= layer.options.zoom.max && layer.extent.intersectsExtent(tile.extent);
